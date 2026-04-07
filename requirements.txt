@@ -1,0 +1,15 @@
+torch==2.2.0
+torchvision
+transformers==4.40.0
+accelerate==0.29.0
+bitsandbytes==0.43.0
+peft==0.10.0
+trl==0.8.6
+datasets==2.19.0
+sentencepiece
+protobuf
+optimum[onnxruntime-gpu]
+tensorboard==2.16.2
+pandas
+tqdm
+scipy

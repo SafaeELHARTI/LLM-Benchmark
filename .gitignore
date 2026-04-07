@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.env
+results/*.csv
+models/
+*.safetensors
+*.bin
+.DS_Store
+tensorboard_logs/
