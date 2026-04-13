@@ -1,0 +1,30 @@
+version: "3.8"
+
+services:
+  benchmark:
+    build: .
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - LD_LIBRARY_PATH=/usr/lib/wsl/lib
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+    volumes:
+      - ./benchmark:/app/benchmark
+      - ./results:/app/results
+      - ./tensorboard_logs:/app/tensorboard_logs
+      - hf_cache:/root/.cache/huggingface
+      - /usr/lib/wsl:/usr/lib/wsl
+    ports:
+      - "6006:6006"
+
+  tensorboard:
+    image: tensorflow/tensorflow:latest
+    volumes:
+      - ./tensorboard_logs:/logs
+    ports:
+      - "6007:6006"
+    command: tensorboard --logdir=/logs --host=0.0.0.0
+
+volumes:
+  hf_cache:
