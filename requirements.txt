@@ -10,3 +10,4 @@ tensorboard==2.16.2
 pandas
 tqdm
 scipy
+rich
