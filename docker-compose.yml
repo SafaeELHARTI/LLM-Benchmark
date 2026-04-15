@@ -19,12 +19,13 @@ services:
       - "6006:6006"
 
   tensorboard:
-    image: tensorflow/tensorflow:latest
+    image: python:3.10-slim
     volumes:
       - ./tensorboard_logs:/logs
     ports:
       - "6007:6006"
-    command: tensorboard --logdir=/logs --host=0.0.0.0
-
+    command: >
+      sh -c "pip install tensorboard -q && tensorboard --logdir=/logs --host=0.0.0.0"
+      
 volumes:
   hf_cache:
