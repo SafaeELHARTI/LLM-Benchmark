@@ -1,202 +1,178 @@
 ---
 base_model: TinyLlama/TinyLlama-1.1B-Chat-v1.0
 library_name: peft
+tags:
+  - lora
+  - qlora
+  - tinyllama
+  - instruction-tuning
+  - causal-lm
+  - 4bit
+license: apache-2.0
 ---
 
-# Model Card for Model ID
+# TinyLlama-1.1B — QLoRA Adapter (Alpaca-500)
 
-<!-- Provide a quick summary of what the model is/does. -->
+Fine-tuned LoRA adapter for [TinyLlama/TinyLlama-1.1B-Chat-v1.0](https://huggingface.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0) using QLoRA on 500 instruction-following examples from the Alpaca dataset.
 
+This adapter was produced as part of an LLM optimization benchmark studying the latency/quality tradeoff of quantization and LoRA fine-tuning on a 4GB consumer GPU.
 
+---
 
 ## Model Details
 
 ### Model Description
 
-<!-- Provide a longer summary of what this model is. -->
+- **Developed by:** Safae ElHarti
+- **Model type:** Causal Language Model (LoRA adapter)
+- **Language:** English
+- **License:** Apache 2.0
+- **Base model:** TinyLlama/TinyLlama-1.1B-Chat-v1.0
+- **Fine-tuning method:** QLoRA (INT4 base + BF16 LoRA adapters)
+- **Repository:** [SafaeElHarti/llm-benchmark](https://github.com/SafaeElHarti/llm-benchmark)
 
-
-
-- **Developed by:** [More Information Needed]
-- **Funded by [optional]:** [More Information Needed]
-- **Shared by [optional]:** [More Information Needed]
-- **Model type:** [More Information Needed]
-- **Language(s) (NLP):** [More Information Needed]
-- **License:** [More Information Needed]
-- **Finetuned from model [optional]:** [More Information Needed]
-
-### Model Sources [optional]
-
-<!-- Provide the basic links for the model. -->
-
-- **Repository:** [More Information Needed]
-- **Paper [optional]:** [More Information Needed]
-- **Demo [optional]:** [More Information Needed]
+---
 
 ## Uses
 
-<!-- Address questions around how the model is intended to be used, including the foreseeable users of the model and those affected by the model. -->
-
 ### Direct Use
 
-<!-- This section is for the model use without fine-tuning or plugging into a larger ecosystem/app. -->
-
-[More Information Needed]
-
-### Downstream Use [optional]
-
-<!-- This section is for the model use when fine-tuned for a task, or when plugged into a larger ecosystem/app -->
-
-[More Information Needed]
+This adapter is intended for instruction-following tasks in English. Load it on top of the INT4-quantized TinyLlama base model for memory-efficient inference.
 
 ### Out-of-Scope Use
 
-<!-- This section addresses misuse, malicious use, and uses that the model will not work well for. -->
+- Not suitable for production or safety-critical applications
+- Not evaluated on multilingual tasks
+- May hallucinate or produce incorrect answers — this is a lightweight research adapter trained on 500 examples
 
-[More Information Needed]
+---
 
-## Bias, Risks, and Limitations
+## How to Get Started
 
-<!-- This section is meant to convey both technical and sociotechnical limitations. -->
+```python
+import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+from peft import PeftModel
 
-[More Information Needed]
+MODEL_ID = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+ADAPTER_ID = "results/lora_adapter"  # or your HF Hub path
 
-### Recommendations
+bnb_config = BitsAndBytesConfig(
+    load_in_4bit=True,
+    bnb_4bit_compute_dtype=torch.bfloat16,
+    bnb_4bit_use_double_quant=True,
+    bnb_4bit_quant_type="nf4"
+)
 
-<!-- This section is meant to convey recommendations with respect to the bias, risk, and technical limitations. -->
+tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
+base_model = AutoModelForCausalLM.from_pretrained(
+    MODEL_ID, quantization_config=bnb_config, device_map="auto"
+)
+model = PeftModel.from_pretrained(base_model, ADAPTER_ID)
 
-Users (both direct and downstream) should be made aware of the risks, biases and limitations of the model. More information needed for further recommendations.
+prompt = "### Instruction:\nExplain what LoRA is.\n### Response:\n"
+inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
+outputs = model.generate(**inputs, max_new_tokens=100)
+print(tokenizer.decode(outputs[0], skip_special_tokens=True))
+```
 
-## How to Get Started with the Model
-
-Use the code below to get started with the model.
-
-[More Information Needed]
+---
 
 ## Training Details
 
 ### Training Data
 
-<!-- This should link to a Dataset Card, perhaps with a short stub of information on what the training data is all about as well as documentation related to data pre-processing or additional filtering. -->
+- **Dataset:** [tatsu-lab/alpaca](https://huggingface.co/datasets/tatsu-lab/alpaca)
+- **Subset:** First 500 examples (`train[:500]`)
+- **Format:** Instruction/Response pairs
 
-[More Information Needed]
+```
+### Instruction:
+<instruction text>
+### Response:
+<response text>
+```
 
-### Training Procedure
+### Training Hyperparameters
 
-<!-- This relates heavily to the Technical Specifications. Content here should link to that section when it is relevant to the training procedure. -->
+| Parameter | Value |
+|---|---|
+| Training regime | BF16 mixed precision |
+| Epochs | 1 |
+| Per device batch size | 2 |
+| Gradient accumulation steps | 4 |
+| Effective batch size | 8 |
+| Learning rate | 2e-4 |
+| LoRA rank (r) | 8 |
+| LoRA alpha | 16 |
+| LoRA dropout | 0.05 |
+| Target modules | q_proj, v_proj |
+| Max sequence length | 512 |
+| Base model precision | INT4 (NF4) |
 
-#### Preprocessing [optional]
+### Training Results
 
-[More Information Needed]
+| Metric | Value |
+|---|---|
+| Training time | ~107s (~1.8 min) |
+| Peak VRAM | 4.75 GB |
+| Final training loss | 1.687 |
+| Trainable parameters | 1,126,400 (0.10% of total) |
+| Hardware | NVIDIA GeForce RTX 3050 (4GB) |
 
+**Loss curve:**
 
-#### Training Hyperparameters
+| Step | Epoch | Loss |
+|---|---|---|
+| 10 | 0.16 | 2.083 |
+| 20 | 0.32 | 1.736 |
+| 30 | 0.48 | 1.649 |
+| 40 | 0.64 | 1.646 |
+| 50 | 0.80 | 1.471 |
+| 60 | 0.96 | 1.594 |
 
-- **Training regime:** [More Information Needed] <!--fp32, fp16 mixed precision, bf16 mixed precision, bf16 non-mixed precision, fp16 non-mixed precision, fp8 mixed precision -->
-
-#### Speeds, Sizes, Times [optional]
-
-<!-- This section provides information about throughput, start/end time, checkpoint size if relevant, etc. -->
-
-[More Information Needed]
+---
 
 ## Evaluation
 
-<!-- This section describes the evaluation protocols and provides the results. -->
+### Inference Results
 
-### Testing Data, Factors & Metrics
+| Metric | Value |
+|---|---|
+| Inference latency | 17.12s |
+| Inference VRAM | 0.84 GB |
+| Throughput | 10.1 tokens/s |
 
-#### Testing Data
+### Benchmark Comparison
 
-<!-- This should link to a Dataset Card if possible. -->
+| Variant | Latency | VRAM | Throughput |
+|---|---|---|---|
+| BF16 baseline | 4.87s | 2.23 GB | 20.5 t/s |
+| INT8 | 21.31s | 1.33 GB | 4.7 t/s |
+| INT4 | 0.12s | 0.84 GB | 860.2 t/s |
+| **LoRA (this adapter)** | **17.12s** | **0.84 GB** | **10.1 t/s** |
 
-[More Information Needed]
+---
 
-#### Factors
+## Technical Specifications
 
-<!-- These are the things the evaluation is disaggregating by, e.g., subpopulations or domains. -->
+### Model Architecture
 
-[More Information Needed]
-
-#### Metrics
-
-<!-- These are the evaluation metrics being used, ideally with a description of why. -->
-
-[More Information Needed]
-
-### Results
-
-[More Information Needed]
-
-#### Summary
-
-
-
-## Model Examination [optional]
-
-<!-- Relevant interpretability work for the model goes here -->
-
-[More Information Needed]
-
-## Environmental Impact
-
-<!-- Total emissions (in grams of CO2eq) and additional considerations, such as electricity usage, go here. Edit the suggested text below accordingly -->
-
-Carbon emissions can be estimated using the [Machine Learning Impact calculator](https://mlco2.github.io/impact#compute) presented in [Lacoste et al. (2019)](https://arxiv.org/abs/1910.09700).
-
-- **Hardware Type:** [More Information Needed]
-- **Hours used:** [More Information Needed]
-- **Cloud Provider:** [More Information Needed]
-- **Compute Region:** [More Information Needed]
-- **Carbon Emitted:** [More Information Needed]
-
-## Technical Specifications [optional]
-
-### Model Architecture and Objective
-
-[More Information Needed]
+- **Base:** TinyLlama-1.1B (22 transformer layers, 32 attention heads)
+- **LoRA injection:** q_proj and v_proj in all attention layers
+- **Adapter size:** ~4.5 MB (vs 2.2 GB for full BF16 model)
 
 ### Compute Infrastructure
 
-[More Information Needed]
+- **Hardware:** NVIDIA GeForce RTX 3050 4GB (WSL2)
+- **Software:** PyTorch 2.4.0 + CUDA 12.4, bitsandbytes 0.43.1, PEFT 0.10.0, TRL 0.8.6
 
-#### Hardware
+---
 
-[More Information Needed]
-
-#### Software
-
-[More Information Needed]
-
-## Citation [optional]
-
-<!-- If there is a paper or blog post introducing the model, the APA and Bibtex information for that should go in this section. -->
-
-**BibTeX:**
-
-[More Information Needed]
-
-**APA:**
-
-[More Information Needed]
-
-## Glossary [optional]
-
-<!-- If relevant, include terms and calculations in this section that can help readers understand the model or model card. -->
-
-[More Information Needed]
-
-## More Information [optional]
-
-[More Information Needed]
-
-## Model Card Authors [optional]
-
-[More Information Needed]
-
-## Model Card Contact
-
-[More Information Needed]
-### Framework versions
+## Framework Versions
 
 - PEFT 0.10.0
+- Transformers 4.40.0
+- PyTorch 2.4.0
+- bitsandbytes 0.43.1
+- TRL 0.8.6
